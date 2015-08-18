@@ -1,5 +1,5 @@
 #!/usr/bin/env bash 
-set -x #Pring every line of commands out
+set -x #Print every line of commands out
 
 
 export KS_INST_DIR=~/ks_inst
@@ -52,26 +52,25 @@ sudo apt-get install -y libffi-dev
 sudo apt-get install -y protobuf-compiler
 sudo apt-get install -y memcached
 sudo apt-get install -y unzip
+sudo apt-get install -y autoconf automake libtool
 read -p "Microwise: Prerequisites." var
 
 
-#Install PyEClib
-sudo apt-get install -y autoconf automake libtool
-cd ~
-git clone https://bitbucket.org/tsg-/liberasurecode.git
-cd liberasurecode
-./autogen.sh
-./configure
-make
-sudo make test
-sudo make install
-cd ~
-git clone https://bitbucket.org/kmgreen2/pyeclib.git
-cd pyeclib
-sudo python setup.py install
-read -p "Microwise: PyEClib installed." var
 
 #Install protobuf 3.0 . 默认安装是2.5，太low了，对于新的kinetic固件不支持
+
+#wget protobuf3.0 and gmock 1.7.0 from qslab website
+cd $KS_INST_SOURCE_DIR
+
+if [ ! -f "$KS_INST_SOURCE_DIR/protobuf.3.0.tar" ]; then
+   #wget ......
+fi
+if [ ! -f "$KS_INST_SOURCE_DIR/gmock-1.7.0.zip" ]; then
+   #wget ......
+fi
+
+
+
 cp $KS_INST_SOURCE_DIR/protobuf.3.0.tar $KS_INST_DIR
 cd $KS_INST_DIR
 tar -xf protobuf.3.0.tar
@@ -111,123 +110,8 @@ read -p "Microwise: Installed kinetic-java." var
 
 
 
-#Installing from source
-cd ~/kinetic-swift
-sudo python setup.py develop
-cd swift
-git checkout stable/kilo
-sudo python setup.py develop
-#cd ../python-swiftclient/
-#sudo python setup.py install
-sudo apt-get install -y python-swiftclient
-#cd ../kinetic-py/
-#git submodule init
-#git submodule update
-#sudo sh compile_proto.sh 
-#sudo python setup.py develop
-#cd ..
-read -p "Microwise: Installing from source." var
-
-
-#make the DIRs
-export SWIFT_DIR=/swift
-if [ ! -d "$SWIFT_DIR" ]; then
-   sudo mkdir $SWIFT_DIR
-fi
-sudo chmod 777 $SWIFT_DIR
-
-cd $SWIFT_DIR
-#$SWIFT_DIR/sdv is used to store container and account information, in a real enviornment, here should be real devices.
-if [ ! -d "sdv" ]; then
-   sudo mkdir $SWIFT_DIR/sdv
-fi
-sudo chmod 777 $SWIFT_DIR/sdv
-
-if [ ! -d "/etc/swift" ]; then
-   sudo mkdir /etc/swift
-fi
-sudo chmod 777 /etc/swift
-
-if [ ! -d "/var/run/swift" ]; then
-   sudo mkdir /var/run/swift
-fi
-sudo chmod 777 /var/run/swift
-
-if [ ! -d "/var/cache/swift" ]; then
-   sudo mkdir /var/cache/swift
-fi
-sudo chmod 777 /var/cache/swift
-read -p "Microwise: Maked the DIRs." var
-
-
-#copy the .conf samples
-sudo cp $KS_SOURCE_DIR/swift/etc/account-server.conf-sample /etc/swift/account-server.conf
-sudo cp $KS_SOURCE_DIR/swift/etc/object-server.conf-sample /etc/swift/object-server.conf
-sudo cp $KS_SOURCE_DIR/swift/etc/container-server.conf-sample /etc/swift/container-server.conf
-sudo cp $KS_SOURCE_DIR/swift/etc/proxy-server.conf-sample /etc/swift/proxy-server.conf
-sudo cp $KS_SOURCE_DIR/swift/etc/swift.conf-sample /etc/swift/swift.conf
-read -p "Microwise: copied the .conf files." var
-
-
-#modify the .conf files
-source $KS_INST_SOURCE_DIR/tools/ini-config
-iniset /etc/swift/account-server.conf DEFAULT user stack
-iniset /etc/swift/account-server.conf DEFAULT devices "$SWIFT_DIR"
-iniset /etc/swift/account-server.conf DEFAULT mount_check false
-iniset /etc/swift/account-server.conf pipeline:main pipeline "healthcheck account-server"
-
-iniset /etc/swift/container-server.conf DEFAULT user stack
-iniset /etc/swift/container-server.conf DEFAULT devices "$SWIFT_DIR"
-iniset /etc/swift/contaienr-server.conf DEFAULT mount_check false
-iniset /etc/swift/container-server.conf pipeline:main pipeline "healthcheck container-server"
-
-iniset /etc/swift/object-server.conf DEFAULT user stack
-iniset /etc/swift/object-server.conf DEFAULT devices "$SWIFT_DIR"
-iniset /etc/swift/object-server.conf DEFAULT mount_check false
-iniset /etc/swift/object-server.conf DEFAULT disk_chunk_size 1048576
-iniset /etc/swift/object-server.conf pipeline:main pipeline "healthcheck object-server"
-iniset /etc/swift/object-server.conf app:object-server use egg:kinetic_swift#object
-
-iniset /etc/swift/proxy-server.conf DEFAULT user stack
-iniset /etc/swift/proxy-server.conf DEFAULT object_single_process object-server.conf
-iniset /etc/swift/proxy-server.conf DEFAULT account_autocreate true
-
-read -p "Microwise: modified the .conf files." var
-
-
-
-cd /etc/swift
-swift-ring-builder account.builder create 10 1 1
-swift-ring-builder account.builder add --region 1 --zone 1 --ip 127.0.0.1 --port 6002 --device sdv --weight 1
-swift-ring-builder account.builder rebalance
-
-swift-ring-builder container.builder create 10 1 1
-swift-ring-builder container.builder add --region 1 --zone 1 --ip 127.0.0.1 --port 6001 --device sdv --weight 1
-swift-ring-builder container.builder rebalance
-
-#build the ring
-echo "Microwise: If you believe this is a real world, you should stop here."
-echo "Because the following is not real!"
-read -p "Continue? [Y/N]" var
-if [ $var = 'N' ]; then
-   exit
-fi
-
 cd bin
 screen -dmS kinjava ./startSimulator.sh
 read -p "Microwise: a simulator is launched." var
-
-swift-ring-builder object.builder create 10 1 1
-swift-ring-builder object.builder add --region 1 --zone 1 --ip 127.0.0.1 --port 6000 --device 127.0.0.1:8123 --weight 1
-swift-ring-builder object.builder rebalance
-
-read -p "Microwise: builded the ring." var
-
-
-
-#start swift
-sudo swift-init start main
-sudo swift-init account-auditor account-replicator container-auditor container-updater container-replicator start
-screen -dmS ksreplicator kinetic-swift-replicator /etc/swift/object-server.conf
 
 
