@@ -1,2 +1,2 @@
 # Kinetic-Swift-Installation
-A tool to install Kinetic-Swift
+A tool to deploy Kinetic-Swift PACO nodes
